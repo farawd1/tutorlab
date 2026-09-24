@@ -21,7 +21,7 @@ async function handle(request:Request){
     const key=id(),hash=await hashPassword(input.password);
     try{await db.prepare("INSERT INTO users (id,email,name,role,passwordHash,createdAt) VALUES (?,?,?,?,?,?)").bind(key,input.email,input.name,input.role,hash,now()).run();}
     catch{throw new HttpError(409,"Этот email уже зарегистрирован");}
-    return respond({user:publicUser({...input,id:key})},201,{"Set-Cookie":await createSession(key,request)});
+    const session=await createSession(key,request);return respond({user:publicUser({...input,id:key}),sessionToken:session.token},201,{"Set-Cookie":session.cookie});
    }
    if(method==="POST"&&path[1]==="login"){
     const input=authInput.parse(await json(request));
@@ -30,7 +30,7 @@ async function handle(request:Request){
     const account=await db.prepare("SELECT * FROM users WHERE email=?").bind(input.email).first<{id:string;email:string;name:string;role:string;passwordHash:string}>();
     if(!account||!await verifyPassword(input.password,account.passwordHash)){const resetAt=new Date(Date.now()+15*60000).toISOString();await db.prepare("INSERT INTO login_attempts (email,count,resetAt) VALUES (?,1,?) ON CONFLICT(email) DO UPDATE SET count=CASE WHEN resetAt<? THEN 1 ELSE count+1 END,resetAt=CASE WHEN resetAt<? THEN excluded.resetAt ELSE resetAt END").bind(input.email,resetAt,now(),now()).run();throw new HttpError(401,"Неверный email или пароль");}
     await db.prepare("DELETE FROM login_attempts WHERE email=?").bind(input.email).run();
-    return respond({user:publicUser(account)},200,{"Set-Cookie":await createSession(account.id,request)});
+    const session=await createSession(account.id,request);return respond({user:publicUser(account),sessionToken:session.token},200,{"Set-Cookie":session.cookie});
    }
    if(method==="POST"&&path[1]==="logout")return respond({ok:true},200,{"Set-Cookie":await removeSession(request)});
    if(method==="POST"&&path[1]==="password"){
@@ -39,14 +39,14 @@ async function handle(request:Request){
     if(!account||!await verifyPassword(input.current,account.passwordHash))throw new HttpError(401,"Неверный текущий пароль");
     await db.prepare("UPDATE users SET passwordHash=? WHERE id=?").bind(await hashPassword(input.next),user.id).run();
     await db.prepare("DELETE FROM auth_sessions WHERE userId=?").bind(user.id).run();
-    return respond({ok:true},200,{"Set-Cookie":await createSession(user.id,request)});
+    const session=await createSession(user.id,request);return respond({ok:true,sessionToken:session.token},200,{"Set-Cookie":session.cookie});
    }
   }
   const user=await requireUser(request),teacher=user.role==="teacher";
   if(method==="GET"&&action==="state"){
    const courses=(await db.prepare(teacher?"SELECT * FROM courses WHERE teacherId=? ORDER BY createdAt DESC":"SELECT c.* FROM courses c JOIN enrollments e ON e.courseId=c.id WHERE e.userId=? ORDER BY c.createdAt DESC").bind(user.id).all<Record<string,unknown>>()).results;
    const courseIds=courses.map(c=>String(c.id));
-   if(!courseIds.length)return respond({courses:[],lessons:[],tasks:[],exams:[],submissions:[],sessions:[],events:[],services:{ai:!!env.AI_API_KEY,judge:!!env.JUDGE0_URL,model:env.AI_MODEL||"deepseek-chat",demo:false}});
+   if(!courseIds.length)return respond({user:publicUser(user),courses:[],lessons:[],tasks:[],exams:[],submissions:[],sessions:[],events:[],services:{ai:!!env.AI_API_KEY,judge:!!env.JUDGE0_URL,model:env.AI_MODEL||"deepseek-chat",demo:false}});
    const placeholders=courseIds.map(()=>"?").join(",");
    const [lessons,tasks,exams,submissions,sessions,events]=await Promise.all([
     db.prepare(`SELECT * FROM lessons WHERE courseId IN (${placeholders}) ORDER BY createdAt DESC`).bind(...courseIds).all<Record<string,unknown>>(),

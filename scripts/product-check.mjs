@@ -1,6 +1,6 @@
 const origin='http://127.0.0.1:8787';
 const stamp=Date.now();
-function client(){let cookie='';return async(path,body,method)=>{await new Promise(r=>setTimeout(r,150));const headers={Origin:origin};if(cookie)headers.Cookie=cookie;if(body!==undefined&&!(body instanceof Uint8Array))headers['Content-Type']='application/json';if(body instanceof Uint8Array)headers['Content-Type']='video/mp4';let response;for(let attempt=0;attempt<4;attempt++){response=await fetch(origin+'/api/'+path,{method:method||(body===undefined?'GET':'POST'),headers,body:body===undefined?undefined:body instanceof Uint8Array?body:JSON.stringify(body)});if(response.status!==503||!response.headers.has('retry-after'))break;await new Promise(r=>setTimeout(r,500));}const setCookie=response.headers.get('set-cookie');if(setCookie)cookie=setCookie.split(';')[0];let value;if(response.headers.get('content-type')?.includes('application/json'))value=await response.json();else value=await response.arrayBuffer();return {status:response.status,value,headers:response.headers};};}
+function client(){let token='';return async(path,body,method)=>{await new Promise(r=>setTimeout(r,150));const headers={Origin:origin};if(token)headers['x-tutorlab-session']=token;if(body!==undefined&&!(body instanceof Uint8Array))headers['Content-Type']='application/json';if(body instanceof Uint8Array)headers['Content-Type']='video/mp4';let response;for(let attempt=0;attempt<4;attempt++){response=await fetch(origin+'/api/'+path,{method:method||(body===undefined?'GET':'POST'),headers,body:body===undefined?undefined:body instanceof Uint8Array?body:JSON.stringify(body)});if(response.status!==503||!response.headers.has('retry-after'))break;await new Promise(r=>setTimeout(r,500));}let value;if(response.headers.get('content-type')?.includes('application/json'))value=await response.json();else value=await response.arrayBuffer();if(value?.sessionToken)token=value.sessionToken;return {status:response.status,value,headers:response.headers};};}
 function ok(result,status,label){if(result.status!==status)throw new Error(`${label}: expected ${status}, got ${result.status}: ${JSON.stringify(result.value)}; headers: ${JSON.stringify([...result.headers])}`);return result.value;}
 const teacher=client(),student=client(),stranger=client();
 ok(await teacher('auth/register',{name:'Teacher',email:`teacher-${stamp}@example.test`,password:'SomeLongPassword1',role:'teacher'}),201,'teacher registration');
@@ -9,7 +9,8 @@ ok(await stranger('auth/register',{name:'Other',email:`other-${stamp}@example.te
 const course=ok(await teacher('courses',{title:'Algebra',subject:'math',description:'Test'}),201,'create course');
 const task=ok(await teacher('tasks',{courseId:course.id,title:'Two plus two',statement:'Find 2 + 2.',kind:'numeric',maxScore:10,expected:'4',tolerance:0,rubric:'',tests:[]}),201,'create task');
 const exam=ok(await teacher('exams',{courseId:course.id,title:'Algebra exam',durationMinutes:5,taskIds:[task.id]}),201,'create exam');
-ok(await student('state'),200,'student empty state');
+const emptyStudentState=ok(await student('state'),200,'student empty state');
+if(emptyStudentState.user?.email!==`student-${stamp}@example.test`)throw new Error('empty state lost authenticated user');
 ok(await stranger('courses/join',{code:'WRONGCODE'}),404,'invalid code');
 ok(await student('courses/join',{code:course.inviteCode}),200,'join course');
 const studentState=ok(await student('state'),200,'student state');
