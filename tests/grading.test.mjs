@@ -1,0 +1,8 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import {parseNumeric,numericReview,taskInput,reviewSchema} from "../lib/contracts.ts";
+test("numeric parser accepts decimal comma and scientific notation",()=>{assert.equal(parseNumeric(" 3,0 "),3);assert.equal(parseNumeric("-1e3"),-1000);});
+test("numeric parser rejects blanks, expressions, trailing units and non-finite values",()=>{for(const value of [""," ","3 m/s","2+1","Infinity","1e999","0x10","3,1,4"])assert.equal(parseNumeric(value),null,value);});
+test("numeric scoring respects tolerance and gives no credit to invalid answers",()=>{assert.equal(numericReview("3.0005","3",.001,10).score,10);assert.equal(numericReview("3.1","3",.001,10).score,0);assert.equal(numericReview("","0",0,10).score,0);assert.equal(numericReview("3","3",0,10).score,10);});
+test("task contract requires numeric reference, code tests, and written rubric",()=>{const task={courseId:"course",title:"Task",statement:"Solve this",kind:"numeric",maxScore:10,expected:"wrong"};assert.equal(taskInput.safeParse(task).success,false);assert.equal(taskInput.safeParse({...task,expected:"3"}).success,true);assert.equal(taskInput.safeParse({...task,kind:"code"}).success,false);assert.equal(taskInput.safeParse({...task,kind:"written",rubric:""}).success,false);assert.equal(taskInput.safeParse({...task,expected:"3",maxScore:-1}).success,false);});
+test("review rejects malformed score and missing feedback",()=>{assert.equal(reviewSchema.safeParse({score:-1,summary:"Bad",strengths:[],improvements:[]}).success,false);assert.equal(reviewSchema.safeParse({score:5}).success,false);});

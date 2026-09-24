@@ -1,0 +1,26 @@
+import assert from "node:assert/strict";
+const base=process.env.TEST_BASE_URL||"http://127.0.0.1:5173";
+if(!["localhost","127.0.0.1"].includes(new URL(base).hostname))throw new Error("Smoke tests must target local demo");
+async function request(path,body,role="teacher",expected=200){const response=await fetch(`${base}/api/${path}`,{method:body===undefined?"GET":"POST",headers:{"x-demo-role":role,...(body instanceof FormData?{}:{"Content-Type":"application/json"})},body:body===undefined?undefined:body instanceof FormData?body:JSON.stringify(body)});const result=await response.json();assert.equal(response.status,expected,`${path}: ${JSON.stringify(result)}`);return result;}
+const course=await request("courses",{title:"Smoke test physics",subject:"physics",description:"Disposable local test"},"teacher",201);
+const task=await request("tasks",{courseId:course.id,title:"Smoke numeric task",statement:"Find numeric answer",kind:"numeric",maxScore:10,expected:"3",tolerance:0.001,rubric:"",tests:[]},"teacher",201);
+const exam=await request("exams",{courseId:course.id,title:"Smoke exam",durationMinutes:30,taskIds:[task.id]},"teacher",201);
+const student=await request("state",undefined,"student");
+assert(student.exams.some(e=>e.id===exam.id));
+assert(student.tasks.every(t=>!("expected" in t)&&!("rubric" in t)&&t.tests.every(test=>!test.hidden)));
+await request("courses",{title:"No",subject:"math"},"student",403);
+const s=await request("submissions",{taskId:task.id,answer:"3,0",language:"python"},"student",201);
+await request(`submissions/${s.id}/grade`,{score:11,comment:"Invalid"},"teacher",400);
+await request(`submissions/${s.id}/grade`,{score:10,comment:"Проверка сохранения: верно."},"student",403);
+await request(`submissions/${s.id}/grade`,{score:10,comment:"Проверка сохранения: верно."});
+const state=await request("state");assert.equal(state.submissions.find(x=>x.id===s.id).score,10);
+const bad=await request("submissions",{taskId:task.id,answer:"7",language:"python"},"student",201);
+const badState=await request("state");assert.equal(badState.submissions.find(x=>x.id===bad.id).review.score,0);
+const form=new FormData();form.set("courseId",course.id);form.set("title","Тестовая лекция: единицы СИ");form.set("body","F = ma. Используйте единицы СИ.");form.set("file",new Blob(["F = ma"],{type:"text/plain"}),"si.txt");
+const lesson=await request("lessons",form,"teacher",201);
+const file=await fetch(`${base}/api/files/${lesson.id}`);assert.equal(file.status,200);assert.equal(await file.text(),"F = ma");
+const forbidden=new FormData();for(const [k,v] of form)forbidden.set(k,v);forbidden.set("file",new Blob(["<script>alert(1)</script>"],{type:"text/html"}),"x.html");await request("lessons",forbidden,"teacher",400);
+const session=await request("exam-sessions",{},"student",201);await request(`exam-sessions/${session.id}/events`,{kind:"tab_hidden",detail:"Smoke test event"},"student");await request(`exam-sessions/${session.id}/end`,{},"student");await request(`exam-sessions/${session.id}/events`,{kind:"tab_hidden",detail:"Must reject"},"student",409);
+const cross=await fetch(`${base}/api/seed`,{method:"POST",headers:{origin:"https://example.com","x-demo-role":"teacher"},body:"{}"});assert.equal(cross.status,403);
+console.log("Smoke PASS: durable grade, invalid score, teacher actions, hidden tests, upload/download, MIME rejection, proctor events, closed session, cross-origin protection.");
+console.log("Local smoke intentionally creates labeled demo submissions and one test lesson. External AI/Judge calls were not made.");

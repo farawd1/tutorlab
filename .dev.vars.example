@@ -1,0 +1,10 @@
+# Copy to .dev.vars. Never commit actual keys.
+AI_API_KEY=
+AI_BASE_URL=https://api.deepseek.com
+AI_MODEL=deepseek-chat
+# Public CE demo works without a key. For private CE, set JUDGE0_KEY.
+# Language IDs are optional: the app can discover them from GET /languages/.
+JUDGE0_URL=
+JUDGE0_KEY=
+JUDGE0_PYTHON_ID=
+JUDGE0_CPP_ID=
