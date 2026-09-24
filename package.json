@@ -13,7 +13,7 @@
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "db:generate": "drizzle-kit generate",
     "typecheck": "tsc --noEmit",
-    "test": "node --test tests/grading.test.mjs",
+    "test": "node --test tests/grading.test.mjs tests/password.test.mjs",
     "test:smoke": "node scripts/smoke.mjs",
     "setup:vision": "node scripts/setup-vision.mjs"
   },

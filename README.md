@@ -47,7 +47,7 @@ JUDGE0_URL=https://ce.judge0.com
 
 ```powershell
 node node_modules/typescript/bin/tsc --noEmit
-node --test tests/grading.test.mjs
+node --test tests/grading.test.mjs tests/password.test.mjs
 node scripts/run-framework.mjs build
 # при запущенном локальном Worker:
 node scripts/product-check.mjs
