@@ -28,7 +28,7 @@ node node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/s
 node node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0002_fixed_mantis.sql
 ```
 
-Эти команды нужны только для пустой базы; повторное применение не требуется. Затем запустите `..\START.ps1` или `node scripts/run-framework.mjs dev --hostname 127.0.0.1`. Локальные данные сохраняются в `.wrangler/state`.
+Эти команды нужны только для пустой базы; повторное применение не требуется. Затем запустите `npm run start` из папки проекта. Сайт откроется на `http://127.0.0.1:8787`; локальные данные сохраняются в `.wrangler/state`.
 
 ## DeepSeek и Judge0
 
